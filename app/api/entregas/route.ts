@@ -1,7 +1,8 @@
 import { env } from "cloudflare:workers";
 import { getAppSession, sameOrigin } from "../../../lib/app-session";
 import { isAdmin } from "../../../lib/admin";
-import { mesas, type Delivery } from "../../../lib/delivery";
+import { mesas } from "../../../lib/delivery";
+import { deliveryPage, deliverySummary, historyOptions } from "../../../lib/delivery-report";
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
 type Row = { id: string; mesa: string; numero: number; nombre: string; direccion: string; fecha: string; lat: number; lng: number; precision: number; user_id: string; operador: string; tiene_ine: number };
 export async function GET(request: Request) {
@@ -23,17 +24,11 @@ export async function GET(request: Request) {
     if (!photo) return json({ error: "Foto no encontrada." }, 404);
     return new Response(photo.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
   }
-  const result = await env.DB.prepare("SELECT * FROM deliveries ORDER BY fecha DESC").all<Row>();
-  const records: Delivery[] = result.results.map(row => ({ operador: row.operador, tieneINE: row.tiene_ine === 1, mesa: row.mesa, nombre: row.nombre, direccion: row.direccion, fecha: row.fecha, folio: row.mesa + "-" + row.numero, lat: String(row.lat), lng: String(row.lng), precision: String(row.precision) }));
-  let cursor: string | undefined;
-  do {
-    const options: R2ListOptions & { include: string[] } = { prefix: "entregas/", cursor, include: ["customMetadata"] };
-    const page = await bucket.list(options);
-    for (const item of page.objects) records.push({ ...item.customMetadata, folio: item.key.slice(9), fecha: item.uploaded.toISOString() } as Delivery);
-    cursor = page.truncated ? page.cursor : undefined;
-  } while (cursor);
-  records.sort((a, b) => b.fecha.localeCompare(a.fecha));
-  return json(records);
+  const params = new URL(request.url).searchParams;
+  if (params.get("resumen") === "1") return json(await deliverySummary(env.DB, bucket));
+  let options;
+  try { options = historyOptions(params); } catch (error) { return json({ error: error instanceof Error ? error.message : "Filtro inválido." }, 400); }
+  return json(await deliveryPage(env.DB, bucket, options));
 }
 export async function POST(request: Request) {
   const user = await getAppSession(request);
@@ -41,6 +36,8 @@ export async function POST(request: Request) {
   if (!sameOrigin(request)) return json({ error: "Abre la aplicación directamente." }, 403);
   const bucket = env.BUCKET, db = env.DB;
   if (!bucket || !db) return json({ error: "Almacenamiento no disponible." }, 503);
+  const state = await db.prepare("SELECT generation, resetting FROM delivery_state WHERE id = 1").first<{ generation: number; resetting: number }>();
+  if (!state || state.resetting) return json({ error: "El administrador está restableciendo los registros. Intenta cuando termine." }, 503);
   const id = request.headers.get("x-request-id") ?? "";
   if (!/^[0-9a-f-]{36}$/.test(id)) return json({ error: "Identificador inválido." }, 400);
   const existing = await db.prepare("SELECT * FROM deliveries WHERE id = ?").bind(id).first<Row>();
@@ -65,9 +62,13 @@ export async function POST(request: Request) {
   await bucket.put("evidencias/" + id, bytes, options);
   await bucket.put("ine/" + id, ine, options);
   // One atomic statement allocates each mesa's sequence; the request ID makes retries safe.
-  await db.prepare("INSERT INTO deliveries (id, mesa, numero, nombre, direccion, lat, lng, precision, fecha, user_id, operador, tiene_ine) SELECT ?, ?, COALESCE(MAX(numero), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, 1 FROM deliveries WHERE mesa = ? ON CONFLICT(id) DO NOTHING").bind(id, mesa, nombre, direccion, lat, lng, precision, new Date().toISOString(), user.userId, user.name, mesa).run();
+  await db.prepare("INSERT INTO deliveries (id, mesa, numero, nombre, direccion, lat, lng, precision, fecha, user_id, operador, tiene_ine) SELECT ?, ?, COALESCE(MAX(numero), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, 1 FROM deliveries WHERE mesa = ? HAVING (SELECT generation FROM delivery_state WHERE id = 1) = ? AND (SELECT resetting FROM delivery_state WHERE id = 1) = 0 ON CONFLICT(id) DO NOTHING").bind(id, mesa, nombre, direccion, lat, lng, precision, new Date().toISOString(), user.userId, user.name, mesa, state.generation).run();
   const saved = await db.prepare("SELECT * FROM deliveries WHERE id = ?").bind(id).first<Row>();
-  if (!saved || saved.user_id !== user.userId) return json({ error: "No se pudo guardar. Vuelve a intentar." }, 409);
+  if (!saved) {
+    await bucket.delete(["evidencias/" + id, "ine/" + id]);
+    return json({ error: "Los registros fueron restablecidos durante la captura. Vuelve a iniciar la entrega." }, 409);
+  }
+  if (saved.user_id !== user.userId) return json({ error: "No se pudo guardar. Vuelve a intentar." }, 409);
   return json({ folio: saved.mesa + "-" + saved.numero }, 201);
 }
 

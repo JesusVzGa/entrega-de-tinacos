@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { mesas, type Delivery } from "../lib/delivery";
+import { mesas } from "../lib/delivery";
 import { INEReader } from "../components/ine-reader";
 import { LoginScreen } from "../components/login-screen";
+import { AdminHistory } from "../components/admin-history";
 import type { SessionInfo } from "../lib/session-types";
 type GPS = { lat: string; lng: string; precision: string };
 const api = "/api/entregas";
-const date = new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeStyle: "short", timeZone: "America/Mexico_City" });
 async function compress(file: Blob, max = 1600, quality = .84) {
   const bitmap = await createImageBitmap(file);
   const ratio = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
@@ -21,9 +21,6 @@ async function compress(file: Blob, max = 1600, quality = .84) {
     return await new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(Error("No se pudo procesar la foto.")), "image/jpeg", quality));
   } finally { bitmap.close(); }
 }
-const toDataURL = (blob: Blob) => new Promise<string>((resolve, reject) => {
-  const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(blob);
-});
 export default function Page() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,9 +44,9 @@ export default function Page() {
 }
 function DeliveryApp({ session, onLogout }: { session: SessionInfo; onLogout: () => Promise<void> }) {
   const admin = session.admin;
-  const [records, setRecords] = useState<Delivery[] | null>(null);
-  const [listError, setListError] = useState("");
-  const [query, setQuery] = useState("");
+  const [total, setTotal] = useState<number | null>(null);
+  const [reportRevision, setReportRevision] = useState(0);
+  const [reportBusy, setReportBusy] = useState(false);
   const [mesa, setMesa] = useState("");
   const [nombre, setNombre] = useState("");
   const [direccion, setDireccion] = useState("");
@@ -64,19 +61,9 @@ function DeliveryApp({ session, onLogout }: { session: SessionInfo; onLogout: ()
   const [ineKey, setINEKey] = useState(0);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState(false);
-  const [exporting, setExporting] = useState("");
   const busy = useRef(false);
   const requestId = useRef("");
   const gpsGeneration = useRef(0);
-  async function refresh() {
-    setListError("");
-    try {
-      const response = await fetch(api, { cache: "no-store" });
-      if (!response.ok) throw Error();
-      setRecords(await response.json());
-    } catch { setListError("No se pudo actualizar el historial."); }
-  }
-  useEffect(() => { if (admin) void refresh(); }, [admin]);
   useEffect(() => {
     if (!file) { setPreview(""); return; }
     const url = URL.createObjectURL(file); setPreview(url);
@@ -114,61 +101,18 @@ function DeliveryApp({ session, onLogout }: { session: SessionInfo; onLogout: ()
       setNombre(""); setDireccion(""); setConfirmed(false); setFile(null); setINEPhoto(null); setGPS(null);
       gpsGeneration.current++; requestId.current = ""; setINEKey(value => value + 1);
       const form = document.getElementById("delivery-form") as HTMLFormElement | null; form?.reset();
-      if (admin) void refresh();
+      if (admin) setReportRevision(value => value + 1);
     } catch (failure) {
       setError(true); setNotice(failure instanceof TypeError ? "Verifica tu conexión y vuelve a guardar. El reintento conserva el mismo registro para evitar duplicados." : failure instanceof Error ? failure.message : "No se pudo guardar.");
     } finally { busy.current = false; setSaving(false); }
   }
-  async function exportExcel() {
-    if (!records?.length || exporting) return;
-    setListError(""); setExporting("Preparando Excel…");
-    try {
-      const ExcelJS = (await import("exceljs")).default;
-      const workbook = new ExcelJS.Workbook();
-      const sheet = workbook.addWorksheet("Entregas");
-      sheet.columns = [
-        { header: "Folio", key: "folio", width: 16 }, { header: "Mesa", key: "mesa", width: 12 },
-        { header: "Operador", key: "operador", width: 25 }, { header: "Nombre", key: "nombre", width: 32 }, { header: "Dirección", key: "direccion", width: 45 },
-        { header: "Fecha y hora (México)", key: "fecha", width: 25 }, { header: "Latitud", key: "lat", width: 16 },
-        { header: "Longitud", key: "lng", width: 16 }, { header: "Precisión (m)", key: "precision", width: 16 },
-        { header: "Mapa", key: "mapa", width: 20 }, { header: "Foto de entrega", key: "foto", width: 36 }, { header: "Foto de INE", key: "ine", width: 36 },
-      ];
-      sheet.views = [{ state: "frozen", ySplit: 1 }]; sheet.autoFilter = "A1:L1";
-      sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-      sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF103B48" } };
-      for (let index = 0; index < records.length; index++) {
-        const record = records[index]; setExporting("Incluyendo foto " + (index + 1) + " de " + records.length + "…");
-        const row = sheet.addRow({ ...record, fecha: date.format(new Date(record.fecha)), mapa: { text: "Ver ubicación", hyperlink: "https://www.google.com/maps?q=" + encodeURIComponent(record.lat + "," + record.lng) } });
-        row.height = 130; row.alignment = { vertical: "top", wrapText: true };
-        const photos = [{ kind: "entrega", col: 10 }, ...(record.tieneINE ? [{ kind: "ine", col: 11 }] : [])];
-        if (!record.tieneINE) row.getCell(12).value = "No disponible (registro anterior)";
-        for (const photo of photos) {
-          const response = await fetch(api + "?foto=" + encodeURIComponent(record.folio) + "&tipo=" + photo.kind);
-          if (!response.ok) throw Error("No se pudo descargar la foto de " + photo.kind + " del folio " + record.folio + ". Vuelve a intentar la exportación.");
-          const image = await compress(await response.blob(), 440, .8);
-          const id = workbook.addImage({ base64: await toDataURL(image), extension: "jpeg" });
-          const bitmap = await createImageBitmap(image);
-          const scale = Math.min(230 / bitmap.width, 160 / bitmap.height);
-          const ext = { width: bitmap.width * scale, height: bitmap.height * scale };
-          bitmap.close();
-          sheet.addImage(id, { tl: { col: photo.col, row: row.number - 1 }, ext, editAs: "oneCell" });
-        }
-      }
-      setExporting("Generando archivo…");
-      const buffer = await workbook.xlsx.writeBuffer();
-      const url = URL.createObjectURL(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
-      const link = document.createElement("a"); link.href = url; link.download = "entregas-tinacos.xlsx"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
-    } catch (failure) { setListError(failure instanceof Error ? failure.message : "No se pudo exportar el Excel. Vuelve a intentar."); }
-    finally { setExporting(""); }
-  }
-  const filtered = records?.filter(r => r.folio.includes(query.trim().toUpperCase()));
   return <main>
     <header className="hero">
       <div className="eyebrow">OPERACIÓN EN CAMPO</div>
       <h1>Entrega de tinacos</h1>
       <p>Selecciona tu mesa y registra cada entrega con sus datos y evidencia.</p>
-      <div className="session-bar"><span>{admin ? "Administrador" : "Operador"}: {session.name}</span><button type="button" className="secondary" disabled={saving || reading || !!exporting} onClick={() => { void onLogout().catch(failure => { setError(true); setNotice(failure.message); }); }}>Cerrar sesión</button></div>
-      {admin && <div className="progress-label"><strong>{records?.length.toLocaleString("es-MX") ?? "—"}</strong> tinacos entregados</div>}
+      <div className="session-bar"><span>{admin ? "Administrador" : "Operador"}: {session.name}</span><button type="button" className="secondary" disabled={saving || reading || reportBusy} onClick={() => { void onLogout().catch(failure => { setError(true); setNotice(failure.message); }); }}>Cerrar sesión</button></div>
+      {admin && <div className="progress-label"><strong>{total?.toLocaleString("es-MX") ?? "—"}</strong> tinacos entregados</div>}
     </header>
     <div className={admin ? "grid" : "grid operator"}>
       <section className="panel">
@@ -207,30 +151,7 @@ function DeliveryApp({ session, onLogout }: { session: SessionInfo; onLogout: ()
         </>}
         {notice && <p role="status" className={error ? "bad" : "good"}>{notice}</p>}
       </section>
-      {admin && <section className="panel">
-        <div className="eyebrow admin-tag">ADMINISTRADOR</div><h2>Historial</h2>
-        <label htmlFor="buscar">Buscar por folio</label>
-        <input id="buscar" placeholder="Ej. II-1" value={query} onChange={e => setQuery(e.target.value)} />
-        <div className="actions">
-          <button className="secondary" onClick={refresh} disabled={!!exporting}>Actualizar</button>
-          <button className="secondary" onClick={exportExcel} disabled={!records?.length || !!exporting}>Exportar Excel con fotos</button>
-        </div>
-        <small>Exporta todas las entregas con las fotos de entrega e INE, el operador, los datos y el enlace al mapa.</small>
-        {exporting && <p className="empty" role="status">{exporting}</p>}
-        {listError && <p role="status" className="bad">{listError}</p>}
-        {filtered?.length === 0 && <p className="empty">{query.trim() ? "No hay coincidencias." : "Aquí aparecerán las entregas guardadas."}</p>}
-        {!records && !listError && <p className="empty">Cargando historial…</p>}
-        <ul>{filtered?.map(r => <li key={r.folio}>
-          <strong>{r.folio}</strong><small>{date.format(new Date(r.fecha))}</small>
-          {r.operador && <small>Registró: {r.operador}</small>}
-          {r.nombre && <p>{r.nombre}<small>{r.direccion}</small></p>}
-          <div className="links">
-            <a href={api + "?foto=" + encodeURIComponent(r.folio)} target="_blank" rel="noreferrer">Ver entrega</a>
-            {r.tieneINE ? <a href={api + "?foto=" + encodeURIComponent(r.folio) + "&tipo=ine"} target="_blank" rel="noreferrer">Ver INE</a> : <small>Sin foto de INE (registro anterior)</small>}
-            <a href={"https://www.google.com/maps?q=" + encodeURIComponent(r.lat + "," + r.lng)} target="_blank" rel="noreferrer">Ver mapa</a>
-          </div>
-        </li>)}</ul>
-      </section>}
+      {admin && <AdminHistory revision={reportRevision} onTotal={setTotal} onBusy={setReportBusy} />}
     </div>
   </main>;
 }

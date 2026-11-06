@@ -21,6 +21,18 @@ input,select,textarea{width:100%;border:1px solid #9eb3b8;color:inherit;backgrou
 .checkbox input{width:20px;min-height:20px;flex-shrink:0}
 .folio-info{background:#e7f4f2;border-radius:9px;padding:12px;color:#154b50}
 .admin-tag{color:#096457;margin-bottom:8px}
+.summary-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.summary-cards>div{background:#edf6f3;border-radius:9px;padding:10px}
+.summary-cards strong{font-size:1.35rem;color:#096457}
+.summary-cards small{font-size:.75rem}
+.mesa-totals{margin:16px 0}
+.mesa-totals summary{cursor:pointer;font-weight:700}
+.mesa-totals table{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:12px}
+.mesa-totals td,.mesa-totals th{text-align:left;border-bottom:1px solid #dce8e9;padding:7px 3px}
+.export-box{padding:14px;background:#edf6f3;border-radius:10px;margin-top:20px}
+.export-box button{margin-top:12px}
+.pagination{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:18px}
+.page-info{font-size:.88rem;color:#435d67;margin-top:20px}
 .login-main{max-width:850px}
 .login-panel{max-width:650px;margin:0 auto}
 .login-options{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -51,3 +63,5 @@ li{border-top:1px solid #dce8e9;padding:13px 0}
 .bad{background:#fce9e6;color:#842622}
 :focus-visible{outline:3px solid #19867c;outline-offset:2px}
 @media(max-width:670px){main{padding:16px 12px 40px}.grid{grid-template-columns:1fr}.panel{padding:18px}}
+
+.reset-box{margin-top:28px;padding-top:20px;border-top:1px solid #e7c7c2}.reset-box h3{color:#842622}.danger{background:#a32b24;color:white;border-color:#a32b24}.reset-box [role=alertdialog]{padding:16px;margin-top:14px;border:1px solid #e7c7c2;border-radius:12px;background:#fff7f5}

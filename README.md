@@ -15,7 +15,9 @@ Aplicación para registrar entregas por mesa, con datos de la persona beneficiar
 - Ubicación al tomar o seleccionar la foto de evidencia.
 - Nombre del operador asociado al registro.
 - Contador, historial, fotografías y exportación exclusivos del administrador.
-- Excel con imágenes de entrega e INE incrustadas, operador, datos y enlace al mapa.
+- Historial paginado de 25 registros, con filtro por mesa y búsqueda de folio en el servidor.
+- Reporte general con una sola hoja “Totales por mesa”: entregas de las 16 mesas y su suma, sin desglose de fotos ni registros anteriores sin mesa.
+- Excel por mesa con imágenes de entrega e INE, operador, datos y mapa. Cada archivo tiene hasta 100 entregas; las mesas más grandes se descargan por partes ordenadas por consecutivo.
 - Conservación del historial anterior; los registros antiguos no tienen foto INE.
 
 ## Arquitectura
@@ -95,6 +97,10 @@ El OCR propone datos y requiere revisión humana. La prueba con una fotografía 
 
 La aplicación permite escribir y corregir nombre y domicilio, y guardar la foto completa independientemente del resultado del OCR.
 
+## Restablecer registros
+
+El administrador dispone de “Restablecer registros y fotos”. Requiere escribir RESTABLECER y pulsar “Borrar definitivamente”. Elimina permanentemente las entregas de D1 y las fotos de INE, evidencia e históricas de R2. Reinicia los folios por mesa; conserva la configuración de acceso. Durante el proceso se bloquean las capturas y se rechazan capturas iniciadas antes del reinicio. El borrado de fotos se realiza en lotes y se puede reanudar desde el mismo botón si se interrumpe. No se ejecutó sobre datos de producción durante las pruebas.
+
 ## Validaciones realizadas
 
 Antes de la última publicación funcional se comprobaron:
@@ -106,6 +112,8 @@ Antes de la última publicación funcional se comprobaron:
 - Guardado de ambas imágenes, validaciones y atribución del operador.
 - Folios por mesa, concurrencia y reintentos sin duplicados.
 - Conservación del historial anterior.
+- Recorrido de 2,500 registros ficticios en 100 páginas, sin duplicados; filtros, resumen de mesas y exportaciones estables frente a nuevas capturas.
+- Lectura de vuelta del Excel de resumen para comprobar sus 16 mesas y total general.
 - Extracción OCR sobre datos de prueba y documentación de su limitación real.
 
 Las pruebas automatizadas usan SQLite en memoria, almacenamiento de prueba y datos ficticios; no generan entregas en producción.
