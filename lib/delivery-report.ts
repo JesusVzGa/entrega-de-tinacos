@@ -9,7 +9,7 @@ export function historyOptions(params: URLSearchParams): HistoryOptions {
   const q = (params.get("q") ?? "").trim().toUpperCase();
   const pagina = Number(params.get("pagina") ?? "1"), limite = Number(params.get("limite") ?? "25");
   const exportar = params.get("exportar") === "1";
-  if ((mesa && mesa !== "sin-mesa" && !mesas.includes(mesa)) || q.length > 40 || !Number.isSafeInteger(pagina) || pagina < 1 || !Number.isSafeInteger(limite) || limite < 1 || limite > 100) throw Error("Revisa la mesa, el folio y la página solicitada.");
+  if ((mesa && mesa !== "sin-mesa" && !mesas.includes(mesa)) || q.length > 40 || !Number.isSafeInteger(pagina) || pagina < 1 || !Number.isSafeInteger(limite) || limite < 1 || limite > 150) throw Error("Revisa la mesa, el folio y la página solicitada.");
   if (exportar && (!mesa || q)) throw Error("Selecciona una mesa para exportar sus entregas.");
   return { mesa, q, pagina, limite, exportar };
 }

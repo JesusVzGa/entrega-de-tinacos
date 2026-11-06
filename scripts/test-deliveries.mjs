@@ -111,19 +111,19 @@ for(let page=1;page<=100;page++){
   for(const row of result.items){assert(!seen.has(row.folio));seen.add(row.folio);}
 }
 assert.equal(seen.size,2500); assert(seen.has("TIN-001"));
-const forMesa = await (await deliveries.GET(request("/api/entregas?mesa=II&limite=100",admin))).json();
+const forMesa = await (await deliveries.GET(request("/api/entregas?mesa=II&limite=150",admin))).json();
 assert(forMesa.items.every(row=>row.mesa==="II")); assert.equal(forMesa.total,summary.porMesa.find(row=>row.mesa==="II").total);
-const export1 = await (await deliveries.GET(request("/api/entregas?mesa=II&exportar=1&limite=100",admin))).json();
-assert.equal(export1.items.length,100);assert.equal(export1.items[0].folio,"II-1");
+const export1 = await (await deliveries.GET(request("/api/entregas?mesa=II&exportar=1&limite=150",admin))).json();
+assert.equal(export1.items.length,150);assert.equal(export1.items[0].folio,"II-1");
 await save("II");
-const exportAgain=await (await deliveries.GET(request("/api/entregas?mesa=II&exportar=1&limite=100",admin))).json();
+const exportAgain=await (await deliveries.GET(request("/api/entregas?mesa=II&exportar=1&limite=150",admin))).json();
 assert.deepEqual(exportAgain.items.map(row=>row.folio),export1.items.map(row=>row.folio));
-const export2=await (await deliveries.GET(request("/api/entregas?mesa=II&exportar=1&limite=100&pagina=2",admin))).json();
-assert(export2.items.length<=100);assert(!export2.items.some(row=>export1.items.some(first=>first.folio===row.folio)));
+const export2=await (await deliveries.GET(request("/api/entregas?mesa=II&exportar=1&limite=150&pagina=2",admin))).json();
+assert(export2.items.length<=150);assert(!export2.items.some(row=>export1.items.some(first=>first.folio===row.folio)));
 const legacy=await (await deliveries.GET(request("/api/entregas?mesa=sin-mesa",admin))).json();assert.equal(legacy.total,1);assert.equal(legacy.items[0].folio,"TIN-001");
 const empty=await (await deliveries.GET(request("/api/entregas?mesa=II&q=NO-SUCH",admin))).json();assert.equal(empty.total,0);assert.equal(empty.pagina,1);assert.equal(empty.paginas,1);
 const search=await (await deliveries.GET(request("/api/entregas?mesa=II&q=II-1",admin))).json();assert(search.items.every(row=>row.mesa==="II"&&row.folio.includes("II-1")));
-for(const params of ["mesa=XVII","pagina=0","limite=101","exportar=1","mesa=II&exportar=1&q=II-1"]){assert.equal((await deliveries.GET(request("/api/entregas?"+params,admin))).status,400);}
+for(const params of ["mesa=XVII","pagina=0","limite=151","exportar=1","mesa=II&exportar=1&q=II-1"]){assert.equal((await deliveries.GET(request("/api/entregas?"+params,admin))).status,400);}
 assert.equal((await deliveries.GET(request("/api/entregas?resumen=1",operator))).status,403);
 const ExcelJS=(await import("exceljs")).default; const {fillSummaryWorkbook}=await import("../lib/workbook-report.ts");
 const workbook=new ExcelJS.Workbook();fillSummaryWorkbook(workbook,summary);const loaded=new ExcelJS.Workbook();await loaded.xlsx.load(await workbook.xlsx.writeBuffer());

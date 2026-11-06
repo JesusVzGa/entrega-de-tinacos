@@ -6,7 +6,7 @@ import { fillSummaryWorkbook, reportDate, styleHeader } from "../lib/workbook-re
 import { ResetDeliveries } from "./reset-deliveries";
 import type { Workbook } from "exceljs";
 const api = "/api/entregas";
-const exportSize = 100;
+const exportSize = 150;
 async function getJSON<T>(params: URLSearchParams, signal?: AbortSignal): Promise<T> {
   const response = await fetch(api + "?" + params, { cache: "no-store", signal });
   const result = await response.json() as T & { error?: string };
@@ -135,7 +135,7 @@ export function AdminHistory({ revision, onTotal, onBusy }: { revision: number; 
     <form onSubmit={search}><label htmlFor="buscar">Buscar por folio</label><input id="buscar" placeholder="Ej. II-1" value={draft} maxLength={40} disabled={!!exporting} onChange={event => setDraft(event.target.value)} /><div className="actions"><button className="secondary" disabled={!!exporting}>Buscar</button></div></form>
     <div className="export-box"><strong>Excel con fotos por mesa</strong>
       {!mesa ? <small>Selecciona una mesa en el filtro para descargar sus entregas con fotos.</small> : <>
-        <small>{mesaLabel}: {selectedCount} entregas. Incluye toda la mesa, independientemente de la búsqueda por folio. Máximo 100 entregas por archivo.</small>
+        <small>{mesaLabel}: {selectedCount} entregas. Incluye toda la mesa, independientemente de la búsqueda por folio. Máximo 150 entregas por archivo.</small>
         {parts > 1 && <><label htmlFor="export-part">Archivo de la mesa</label><select id="export-part" value={selectedPart} disabled={!!exporting} onChange={event => setPart(Number(event.target.value))}>{Array.from({ length: parts }, (_, i) => <option key={i + 1} value={i + 1}>Archivo {i + 1}: entregas {i * exportSize + 1}–{Math.min((i + 1) * exportSize, selectedCount)}</option>)}</select></>}
       </>}
       <button className="secondary" disabled={!mesa || !selectedCount || !!exporting} onClick={exportMesa}>Descargar Excel con fotos de la mesa</button>

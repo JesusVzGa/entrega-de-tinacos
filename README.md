@@ -17,7 +17,7 @@ Aplicación para registrar entregas por mesa, con datos de la persona beneficiar
 - Contador, historial, fotografías y exportación exclusivos del administrador.
 - Historial paginado de 25 registros, con filtro por mesa y búsqueda de folio en el servidor.
 - Reporte general con una sola hoja “Totales por mesa”: entregas de las 16 mesas y su suma, sin desglose de fotos ni registros anteriores sin mesa.
-- Excel por mesa con imágenes de entrega e INE, operador, datos y mapa. Cada archivo tiene hasta 100 entregas; las mesas más grandes se descargan por partes ordenadas por consecutivo.
+- Excel por mesa con imágenes de entrega e INE, operador, datos y mapa. Cada archivo tiene hasta 150 entregas; las mesas más grandes se descargan por partes ordenadas por consecutivo.
 - Conservación del historial anterior; los registros antiguos no tienen foto INE.
 
 ## Arquitectura
